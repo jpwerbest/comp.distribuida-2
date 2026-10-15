@@ -1,0 +1,80 @@
+version: "3"
+
+services:
+  # Banco de dados compartilhado: sem "ports", logo só é acessível
+  # pelos contêineres da mesma rede (os wordpress), não pelo hospedeiro.
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wordpress
+      MYSQL_PASSWORD: wordpress
+    volumes:
+      - db_data:/var/lib/mysql
+
+  # Os três WordPress: sem "ports", acessíveis apenas pelo Nginx.
+  # Todos compartilham a pasta /var/www/html com a máquina hospedeira.
+  wordpress1:
+    image: wordpress:5.4.2-php7.2-apache
+    container_name: wordpress1
+    restart: always
+    depends_on:
+      - mysql
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ./wordpress:/var/www/html
+
+  wordpress2:
+    image: wordpress:5.4.2-php7.2-apache
+    container_name: wordpress2
+    restart: always
+    depends_on:
+      - mysql
+      - wordpress1
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ./wordpress:/var/www/html
+
+  wordpress3:
+    image: wordpress:5.4.2-php7.2-apache
+    container_name: wordpress3
+    restart: always
+    depends_on:
+      - mysql
+      - wordpress1
+    environment:
+      WORDPRESS_DB_HOST: mysql:3306
+      WORDPRESS_DB_USER: wordpress
+      WORDPRESS_DB_PASSWORD: wordpress
+      WORDPRESS_DB_NAME: wordpress
+    volumes:
+      - ./wordpress:/var/www/html
+
+  # Balanceador de carga: único serviço exposto ao hospedeiro (porta 80).
+  nginx:
+    image: nginx:1.19.0
+    container_name: nginx
+    restart: always
+    depends_on:
+      - wordpress1
+      - wordpress2
+      - wordpress3
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./wordpress:/usr/share/nginx/html
+
+volumes:
+  db_data:
