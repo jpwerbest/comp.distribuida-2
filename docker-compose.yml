@@ -1,8 +1,20 @@
-version: "3"
+# Configuração comum dos três WordPress (evita repetição)
+x-wordpress: &wordpress
+  image: wordpress:5.4.2-php7.2-apache
+  restart: always
+  depends_on:
+    mysql:
+      condition: service_healthy
+  environment:
+    WORDPRESS_DB_HOST: mysql:3306
+    WORDPRESS_DB_USER: wordpress
+    WORDPRESS_DB_PASSWORD: wordpress
+    WORDPRESS_DB_NAME: wordpress
+  volumes:
+    - ./wordpress:/var/www/html
 
 services:
-  # Banco de dados compartilhado: sem "ports", logo só é acessível
-  # pelos contêineres da mesma rede (os wordpress), não pelo hospedeiro.
+  # Sem "ports": só os WordPress alcançam o banco pela rede interna.
   mysql:
     image: mysql:5.7
     container_name: mysql
@@ -14,54 +26,26 @@ services:
       MYSQL_PASSWORD: wordpress
     volumes:
       - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-prootpass"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  # Os três WordPress: sem "ports", acessíveis apenas pelo Nginx.
-  # Todos compartilham a pasta /var/www/html com a máquina hospedeira.
+  # Sem "ports": só o Nginx alcança os WordPress.
   wordpress1:
-    image: wordpress:5.4.2-php7.2-apache
+    <<: *wordpress
     container_name: wordpress1
-    restart: always
-    depends_on:
-      - mysql
-    environment:
-      WORDPRESS_DB_HOST: mysql:3306
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
-      WORDPRESS_DB_NAME: wordpress
-    volumes:
-      - ./wordpress:/var/www/html
 
   wordpress2:
-    image: wordpress:5.4.2-php7.2-apache
+    <<: *wordpress
     container_name: wordpress2
-    restart: always
-    depends_on:
-      - mysql
-      - wordpress1
-    environment:
-      WORDPRESS_DB_HOST: mysql:3306
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
-      WORDPRESS_DB_NAME: wordpress
-    volumes:
-      - ./wordpress:/var/www/html
 
   wordpress3:
-    image: wordpress:5.4.2-php7.2-apache
+    <<: *wordpress
     container_name: wordpress3
-    restart: always
-    depends_on:
-      - mysql
-      - wordpress1
-    environment:
-      WORDPRESS_DB_HOST: mysql:3306
-      WORDPRESS_DB_USER: wordpress
-      WORDPRESS_DB_PASSWORD: wordpress
-      WORDPRESS_DB_NAME: wordpress
-    volumes:
-      - ./wordpress:/var/www/html
 
-  # Balanceador de carga: único serviço exposto ao hospedeiro (porta 80).
+  # Único serviço exposto ao hospedeiro.
   nginx:
     image: nginx:1.19.0
     container_name: nginx
